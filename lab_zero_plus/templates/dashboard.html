@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<body style="padding:20px;">
+    <h1>Panel de Control</h1>
+    <p>Bienvenido: <b>{{ user }}</b></p>
+    <a href="/profile">Ver mi Perfil</a> | <a href="/">Salir</a>
+    <hr>
+    
+    <h3>Buscador de Empleados</h3>
+    <form method="GET">
+        <input name="q" value="{{ search }}"> <button>Buscar</button>
+    </form>
+    {% if search %}
+        <p>No se encontraron resultados para: {{ search | safe }}</p>
+    {% endif %}
+
+    <hr>
+    <h3>Herramienta de Red (Admin Only)</h3>
+    <form method="POST">
+        IP: <input name="ip" placeholder="8.8.8.8"> <button>Ping</button>
+    </form>
+    <pre style="background:#eee; padding:10px;">{{ result }}</pre>
+</body>
+</html>
