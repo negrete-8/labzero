@@ -17,14 +17,14 @@ jobs:
           fetch-depth: 0
 
       # ============================================
-      # GITLEAKS - SIN CONTINUE-ON-ERROR
+      # GITLEAKS - ESCANEO DE SECRETOS
       # ============================================
       - name: Gitleaks
         uses: zricethezav/gitleaks-action@v1.6.0
-        # ❌ QUITADO: continue-on-error: true
+        # SIN continue-on-error - QUE FALLE SI ENCUENTRA SECRETOS
 
       # ============================================
-      # SNYK - SIN || true
+      # SNYK - ANÁLISIS DE DEPENDENCIAS
       # ============================================
       - name: Install system dependencies and Snyk
         run: |
@@ -36,7 +36,7 @@ jobs:
 
       - name: Snyk Test
         run: |
-          snyk test --severity-threshold=high  # ❌ QUITADO: || true
+          snyk test --severity-threshold=high
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
@@ -53,7 +53,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
       # ============================================
-      # SONARCLOUD - SIN CONTINUE-ON-ERROR
+      # SONARCLOUD - ANÁLISIS ESTÁTICO
       # ============================================
       - name: SonarCloud Scan
         uses: sonarsource/sonarqube-scan-action@master
@@ -63,12 +63,12 @@ jobs:
           args: >
             -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.organization=negrete-8
-            -Dsonar.projectKey=negrete-8_pygoat
+            -Dsonar.projectKey=negrete-8_lab_zero_plus
             -Dsonar.sources=.
-        # ❌ QUITADO: continue-on-error: true
+        # SIN continue-on-error - QUE FALLE SI QUALITY GATE NO PASA
 
       # ============================================
-      # ZAP - SIN CONTINUE-ON-ERROR
+      # ZAP - ANÁLISIS DINÁMICO
       # ============================================
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -92,8 +92,9 @@ jobs:
           
           docker build -t flask-vulnerable .
           docker run -d --name flask-app --network host flask-vulnerable
-          echo "⏳ Esperando 30 segundos..."
+          echo "⏳ Esperando 30 segundos para que arranque Flask..."
           sleep 30
+          echo "✅ App corriendo en http://localhost:5000"
 
       - name: Run ZAP
         run: |
@@ -101,21 +102,22 @@ jobs:
             zaproxy/zap-stable \
             zap.sh -daemon -host 0.0.0.0 -port 8080 \
             -config api.key=${{ secrets.ZAP_API_KEY }}
-          echo "⏳ Esperando 30 segundos..."
+          echo "⏳ Esperando 30 segundos para que arranque ZAP..."
           sleep 30
+          echo "✅ ZAP corriendo en http://localhost:8080"
 
       - name: ZAP Scan
         run: python zap_scan.py
         env:
           ZAP_API_KEY: ${{ secrets.ZAP_API_KEY }}
-        # ❌ QUITADO: continue-on-error: true
+        # SIN continue-on-error - QUE FALLE SI ENCUENTRA ALERTAS HIGH
 
       # ============================================
-      # ARTIFACTS - SIEMPRE SUBIR REPORTES
+      # ARTIFACTS - REPORTES (SIEMPRE SUBIR)
       # ============================================
       - name: Upload Snyk Report
         uses: actions/upload-artifact@v4
-        if: always()  # ✅ Esto SÍ se queda para ver los reportes aunque falle
+        if: always()
         with:
           name: snyk-report
           path: snyk-report.html
@@ -130,10 +132,24 @@ jobs:
           if-no-files-found: warn
 
       # ============================================
-      # BUILD DOCKER - SOLO SI TODO ÉXITO
+      # BUILD DOCKER - SOLO SI TODO EXITOSO
       # ============================================
       - name: Build Docker image
         if: success()
         run: |
           docker tag flask-vulnerable pygoat:final || docker build -t pygoat:final .
           echo "✅ Imagen Docker construida: pygoat:final"
+          docker images | grep pygoat
+
+      # ============================================
+      # NOTIFICACIÓN - SOLO SI TODO EXITOSO
+      # ============================================
+      - name: Notificación
+        if: success()
+        run: |
+          echo "========================================"
+          echo "🚀 Aplicación Flask: Superadas pruebas de seguridad"
+          echo "📦 Imagen Docker: pygoat:final"
+          echo "📊 Reportes disponibles en artifacts"
+          echo "✅ Listo para despliegue en Producción"
+          echo "========================================"
