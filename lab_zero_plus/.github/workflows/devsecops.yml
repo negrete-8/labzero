@@ -137,3 +137,5 @@ jobs:
           docker tag flask-vulnerable pygoat:final || docker build -t pygoat:final ./lab_zero_plus
           echo "✅ Imagen Docker construida: pygoat:final"
           docker images | grep pygoat
+
+
