@@ -21,7 +21,6 @@ jobs:
       # ============================================
       - name: Gitleaks
         uses: zricethezav/gitleaks-action@v1.6.0
-        # SIN continue-on-error - QUE FALLE SI ENCUENTRA SECRETOS
 
       # ============================================
       # SNYK - ANÁLISIS DE DEPENDENCIAS
@@ -30,15 +29,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libjpeg-dev zlib1g-dev
-          pip install --no-cache-dir -r requirements.txt
+          pip install --no-cache-dir -r lab_zero_plus/requirements.txt
           npm install -g snyk
-          snyk --version
 
       - name: Snyk Test
-        run: |
-          snyk test --severity-threshold=high
+        run: snyk test --severity-threshold=high
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        working-directory: ./lab_zero_plus
 
       - name: Install snyk-to-html
         if: always()
@@ -51,6 +49,7 @@ jobs:
           snyk-to-html -i snyk-report.json -o snyk-report.html || true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        working-directory: ./lab_zero_plus
 
       # ============================================
       # SONARCLOUD - ANÁLISIS ESTÁTICO
@@ -63,9 +62,9 @@ jobs:
           args: >
             -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.organization=negrete-8
-            -Dsonar.projectKey=negrete-8_lab_zero_plus
-            -Dsonar.sources=.
-        # SIN continue-on-error - QUE FALLE SI QUALITY GATE NO PASA
+            -Dsonar.projectKey=negrete-8_labzero
+            -Dsonar.sources=./lab_zero_plus
+            -Dsonar.python.version=3.9
 
       # ============================================
       # ZAP - ANÁLISIS DINÁMICO
@@ -80,6 +79,7 @@ jobs:
 
       - name: Build and Run Flask App
         run: |
+          cd lab_zero_plus
           cat > Dockerfile << 'EOF'
           FROM python:3.9-slim
           WORKDIR /app
@@ -89,38 +89,35 @@ jobs:
           EXPOSE 5000
           CMD ["python", "app.py"]
           EOF
-          
           docker build -t flask-vulnerable .
           docker run -d --name flask-app --network host flask-vulnerable
-          echo "⏳ Esperando 30 segundos para que arranque Flask..."
+          echo "⏳ Esperando 30 segundos..."
           sleep 30
-          echo "✅ App corriendo en http://localhost:5000"
 
       - name: Run ZAP
         run: |
-          docker run -d --name zap --network host -v $(pwd):/zap/wrk:rw \
+          docker run -d --name zap --network host -v $(pwd)/lab_zero_plus:/zap/wrk:rw \
             zaproxy/zap-stable \
             zap.sh -daemon -host 0.0.0.0 -port 8080 \
             -config api.key=${{ secrets.ZAP_API_KEY }}
-          echo "⏳ Esperando 30 segundos para que arranque ZAP..."
+          echo "⏳ Esperando 30 segundos..."
           sleep 30
-          echo "✅ ZAP corriendo en http://localhost:8080"
 
       - name: ZAP Scan
         run: python zap_scan.py
         env:
           ZAP_API_KEY: ${{ secrets.ZAP_API_KEY }}
-        # SIN continue-on-error - QUE FALLE SI ENCUENTRA ALERTAS HIGH
+        working-directory: ./lab_zero_plus
 
       # ============================================
-      # ARTIFACTS - REPORTES (SIEMPRE SUBIR)
+      # ARTIFACTS - REPORTES
       # ============================================
       - name: Upload Snyk Report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: snyk-report
-          path: snyk-report.html
+          path: lab_zero_plus/snyk-report.html
           if-no-files-found: warn
 
       - name: Upload ZAP Report
@@ -128,7 +125,7 @@ jobs:
         if: always()
         with:
           name: zap-report
-          path: zap-report.html
+          path: lab_zero_plus/zap-report.html
           if-no-files-found: warn
 
       # ============================================
@@ -137,19 +134,6 @@ jobs:
       - name: Build Docker image
         if: success()
         run: |
-          docker tag flask-vulnerable pygoat:final || docker build -t pygoat:final .
+          docker tag flask-vulnerable pygoat:final || docker build -t pygoat:final ./lab_zero_plus
           echo "✅ Imagen Docker construida: pygoat:final"
           docker images | grep pygoat
-
-      # ============================================
-      # NOTIFICACIÓN - SOLO SI TODO EXITOSO
-      # ============================================
-      - name: Notificación
-        if: success()
-        run: |
-          echo "========================================"
-          echo "🚀 Aplicación Flask: Superadas pruebas de seguridad"
-          echo "📦 Imagen Docker: pygoat:final"
-          echo "📊 Reportes disponibles en artifacts"
-          echo "✅ Listo para despliegue en Producción"
-          echo "========================================"
